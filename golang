@@ -1,0 +1,168 @@
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+type NginxLogEntry struct {
+	LogEntry LogEntry `json:"nginx_logs"`
+}
+
+type LogEntry struct {
+	RemoteAddr       string `json:"remote_addr"`
+	RemoteUser       string `json:"remote_user"`
+	TimeLocal        string `json:"time_local"`
+	Request          string `json:"request"`
+	Status           int    `json:"status"`
+	BodyBytesSent    int    `json:"body_bytes_sent"`
+	Referer          string `json:"referer"`
+	UserAgent        string `json:"user_agent"`
+	SslProtocol      string `json:"ssl_protocol"`
+	SslCipher        string `json:"ssl_cipher"`
+	Connection       string `json:"connection"`
+	RequestTime      int    `json:"request_time"`
+	UpstreamRespTime string `json:"upstream_response_time"`
+	RequestLength    int    `json:"request_length"`
+	UpstreamAddr     string `json:"upstream_addr"`
+	UpstreamStatus   int    `json:"upstream_status"`
+	BytesSent        int    `json:"bytes_sent"`
+	ServerName       string `json:"server_name"`
+	Host             string `json:"host"`
+	RequestURI       string `json:"request_uri"`
+	HttpUpgrade      string `json:"http_upgrade"`
+}
+
+func main() {
+	logFilePath := "/var/log/nginx/access.log" // Change as needed
+
+	// Create a new file for writing JSON data
+	outputFile, err := os.Create("nginx_log.json")
+	if err != nil {
+		log.Fatalf("Error creating output file: %v", err)
+	}
+	defer outputFile.Close()
+
+	// Create a buffered writer for writing to the file
+	writer := bufio.NewWriter(outputFile)
+	defer writer.Flush()
+
+	var lastOffset int64 = 0
+
+	// WebSocket dialer configuration
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+		ReadBufferSize:   1024,
+		WriteBufferSize:  1024,
+	}
+
+	// WebSocket connection URL
+	socketURL := "ws://centraliseddata.com:8087/RedisWebSoc/sw" // Change this to your WebSocket server URL
+
+	// Establish WebSocket connection
+	conn, _, err := dialer.Dial(socketURL, nil)
+	if err != nil {
+		log.Fatalf("Error establishing WebSocket connection: %v", err)
+	}
+	defer conn.Close()
+
+	for {
+		// Open the NGINX access log file
+		file, err := os.Open(logFilePath)
+		if err != nil {
+			log.Fatalf("Error opening log file: %v", err)
+		}
+
+		// Seek to the last known position
+		_, err = file.Seek(lastOffset, 0)
+		if err != nil {
+			log.Fatalf("Error seeking file: %v", err)
+		}
+
+		// Create a scanner to read the log file
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			parts := strings.Split(line, "~")
+			if len(parts) != 21 {
+				log.Println("Invalid line:", line)
+				continue
+			}
+
+			status, _ := strconv.Atoi(parts[8])
+			bodyBytesSent, _ := strconv.Atoi(parts[9])
+			requestTime, _ := strconv.Atoi(strings.Trim(parts[12], "[]"))
+			requestLength, _ := strconv.Atoi(parts[15])
+			upstreamStatus, _ := strconv.Atoi(parts[16])
+			bytesSent, _ := strconv.Atoi(parts[17])
+
+			logEntry := LogEntry{
+				RemoteAddr:       parts[0],
+				RemoteUser:       parts[2],
+				TimeLocal:        parts[3] + " " + parts[4],
+				Request:          parts[5],
+				Status:           status,
+				BodyBytesSent:    bodyBytesSent,
+				Referer:          parts[10],
+				UserAgent:        parts[11],
+				SslProtocol:      parts[13],
+				SslCipher:        parts[14],
+				Connection:       parts[7],
+				RequestTime:      requestTime,
+				UpstreamRespTime: parts[13],
+				RequestLength:    requestLength,
+				UpstreamAddr:     parts[18],
+				UpstreamStatus:   upstreamStatus,
+				BytesSent:        bytesSent,
+				ServerName:       parts[18],
+				Host:             parts[19],
+				RequestURI:       parts[5],
+				HttpUpgrade:      parts[20],
+			}
+
+			// Create a NginxLogEntry instance
+			nginxLogEntry := NginxLogEntry{
+				LogEntry: logEntry,
+			}
+
+			// Marshal the NginxLogEntry into JSON
+			jsonData, err := json.Marshal(nginxLogEntry)
+			if err != nil {
+				log.Fatalf("Error marshalling JSON: %v", err)
+			}
+
+			// Write the JSON data to the file
+			_, err = writer.WriteString(string(jsonData) + "\n")
+			if err != nil {
+				log.Fatalf("Error writing JSON data to file: %v", err)
+			}
+
+			// Send JSON data over WebSocket connection
+			err = conn.WriteMessage(websocket.TextMessage, jsonData)
+			if err != nil {
+				log.Fatalf("Error writing JSON data to WebSocket: %v", err)
+			}
+		}
+
+		// Get the current file offset
+		fileInfo, err := file.Stat()
+		if err != nil {
+			log.Fatalf("Error getting file info: %v", err)
+		}
+		lastOffset = fileInfo.Size()
+
+		// Close the file
+		file.Close()
+
+		// Wait before reading again
+		time.Sleep(1 * time.Second)
+	}
+}

@@ -18,26 +18,26 @@ type NginxLogEntry struct {
 }
 
 type LogEntry struct {
-	RemoteAddr       string `json:"remote_addr"`
-	RemoteUser       string `json:"remote_user"`
-	TimeLocal        string `json:"time_local"`
-	Request          string `json:"request"`
-	Status           int    `json:"status"`
-	BodyBytesSent    int    `json:"body_bytes_sent"`
-	Referer          string `json:"referer"`
-	UserAgent        string `json:"user_agent"`
-	SslProtocol      string `json:"ssl_protocol"`
-	SslCipher        string `json:"ssl_cipher"`
-	RequestTime      string `json:"request_time"`
-	UpstreamRespTime string `json:"upstream_response_time"`
-	RequestLength    int    `json:"request_length"`
-	UpstreamAddr     string `json:"upstream_addr"`
-	UpstreamStatus   int    `json:"upstream_status"`
-	BytesSent        int    `json:"bytes_sent"`
-	ServerName       string `json:"server_name"`
-	Host             string `json:"host"`
-	RequestURI       string `json:"request_uri"`
-	HttpUpgrade      string `json:"http_upgrade"`
+	RemoteAddr       string `json:"CLIENT IP"`
+	RemoteUser       string `json:"REMOTE USER"`
+	TimeLocal        string `json:"DATE & TIME"`
+	Request          string `json:"REQUEST"`
+	Status           int    `json:"TARGET STATUS CODE"`
+	BodyBytesSent    int    `json:"BODY BYTES SENT"`
+	Referer          string `json:"REFERER"`
+	UserAgent        string `json:"USER AGENT"`
+	SslProtocol      string `json:"SSL PROTOCOL"`
+	SslCipher        string `json:"SSL CIPHER"`
+	RequestTime      string `json:"REQUEST PROCESSING TIME"`
+	UpstreamRespTime string `json:"TARGET PROCESSING TIME"`
+	RequestLength    int    `json:"RECEIVED BYTES"`
+	UpstreamAddr     string `json:"TARGET IP:PORT"`
+	UpstreamStatus   int    `json:"STATUS CODE FROM LOAD BALANCER"`
+	BytesSent        int    `json:"BYTES SENT"`
+	ServerName       string `json:"SNI DOMAIN"`
+	Host             string `json:"HOST"`
+	RequestURI       string `json:"URI"`
+	HttpUpgrade      string `json:"HTTP UPGRADE"`
 }
 
 var (
